@@ -94,11 +94,11 @@ namespace Core
 
         private void SaveComplete()
         {
-            _forceSaveCallback?.Invoke();
-            _forceSaveCallback = null;
             _delay = Time.unscaledTime + _saveDelay;
             _saveInProgress = false;
             enabled = false;
+            _forceSaveCallback?.Invoke();
+            _forceSaveCallback = null;
         }
 
         public void Reset()
