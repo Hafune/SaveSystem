@@ -9,15 +9,15 @@ namespace Core
 {
     public class PlayerDataService : MonoConstruct
     {
-        private Action InitializeCallback;
+        private Action _initializeCallback;
         private Action _forceSaveCallback;
         private Coroutine _awaitCoroutine;
         private SdkService _sdkService;
         private ServicesValues _servicesValues = new();
         private bool _saveInProgress;
         private const float _saveDelay = 1f;
-        private const float _sdkSaveDelay = 5.25f;
-        private const string key = nameof(PlayerDataService);
+        private const float _sdkSaveDelay = 1f;
+        private const string _key = nameof(PlayerDataService);
         private float _delay;
         private float _lastSaveTime;
         private readonly HashSet<ISerializableService> _dirtyServices = new();
@@ -40,7 +40,7 @@ namespace Core
             _lastSaveTime = _sdkSaveDelay;
             _sdkService = Context.Resolve<SdkService>();
 
-            InitializeCallback = callback;
+            _initializeCallback = callback;
             _sdkService.LoadPlayerData(OnLoadSuccess, OnLoadError);
         }
 
@@ -83,7 +83,7 @@ namespace Core
                 SaveServicesData(SaveComplete);
                 return;
             }
-            
+
             float delay = _lastSaveTime - Time.unscaledTime + _sdkSaveDelay;
 
             if (delay > 0)
@@ -104,20 +104,25 @@ namespace Core
         public void Reset()
         {
             _servicesValues = new();
-
+            
             foreach (var service in _ignoreResetServices)
                 service.SaveData();
 
             foreach (var service in _totalServices)
-                if (!_ignoreResetServices.Contains(service))
-                    service.ReloadData();
+            {
+                if (_ignoreResetServices.Contains(service))
+                    continue;
+
+                service.ReloadData();
+                SetDirty(service);
+            }
 
             Save();
         }
 
-        public void SerializeData(object obj, object data) => _servicesValues.SerializeData(obj, data);
+        public void SerializeData(object key, object data) => _servicesValues.SerializeData(key, data);
 
-        public T DeserializeData<T>(object obj) where T : new() => _servicesValues.DeserializeData<T>(obj);
+        public T DeserializeData<T>(object key) where T : new() => _servicesValues.DeserializeData<T>(key);
 
         private void SaveServicesData(Action callback)
         {
@@ -153,7 +158,7 @@ namespace Core
         {
             yield return new WaitForSecondsRealtime(seconds);
             SaveServicesData(callback);
-            
+
             _awaitCoroutine = null;
         }
 
@@ -178,14 +183,14 @@ namespace Core
             foreach (var service in _totalServices)
                 service.ReloadData();
 
-            InitializeCallback.Invoke();
+            _initializeCallback.Invoke();
         }
 
         private void OnLoadError(string error)
         {
             Debug.LogWarning("OnLoadError");
             Debug.LogWarning(error);
-            OnLoadSuccess(PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null);
+            OnLoadSuccess(PlayerPrefs.HasKey(_key) ? PlayerPrefs.GetString(_key) : null);
         }
 
         private void OnSaveSuccess(Action callback)
@@ -199,7 +204,7 @@ namespace Core
         private void OnSaveError(string errorMessage, string stringData, Action callback)
         {
             Debug.LogWarning(errorMessage);
-            PlayerPrefs.SetString(key, stringData);
+            PlayerPrefs.SetString(_key, stringData);
             PlayerPrefs.Save();
             OnSaveSuccess(callback);
         }

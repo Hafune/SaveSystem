@@ -10,11 +10,11 @@ namespace Lib
         [SerializeField] private List<string> _keys = new();
         [SerializeField] private List<string> _values = new();
 
-        public T DeserializeData<T>(object obj) where T : new()
+        public T DeserializeData<T>(object key) where T : new()
         {
             try
             {
-                var value = GetValue(obj);
+                var value = GetValue(key);
                 var data = (value.Length == 0 ? new () : JsonUtility.FromJson<T>(value)) ?? new ();
                 return data;
             }
@@ -24,26 +24,26 @@ namespace Lib
             }
         }
 
-        public void SerializeData(object obj, object data)
+        public void SerializeData(object key, object data)
         {
             var json = JsonUtility.ToJson(data);
-            SetBytes(obj, json);
+            SetValues(key, json);
         }
         
-        private string GetValue(object obj)
+        private string GetValue(object key)
         {
-            int index = _keys.IndexOf(obj.GetType().FullName!);
+            int index = _keys.IndexOf(key.GetType().FullName!);
             return index != -1 ? _values[index] : _values[index] = string.Empty;
         }
 
-        private void SetBytes(object obj, string value)
+        private void SetValues(object key, string value)
         {
-            int index = _keys.IndexOf(obj.GetType().FullName!);
+            int index = _keys.IndexOf(key.GetType().FullName!);
 
             if (index == -1)
             {
                 index = _keys.Count;
-                _keys.Add(obj.GetType().FullName!);
+                _keys.Add(key.GetType().FullName!);
                 _values.Add(string.Empty);
             }
                 

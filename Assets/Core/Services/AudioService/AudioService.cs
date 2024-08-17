@@ -28,8 +28,8 @@ namespace Core.Services
             percent = Math.Clamp(percent, 0, 1);
             AudioListener.volume = percent;
             _serviceData.masterVolume = percent;
-            OnMasterVolumeChanged?.Invoke();
             _playerDataService.SetDirty(this);
+            OnMasterVolumeChanged?.Invoke();
         }
 
         private class ServiceData
