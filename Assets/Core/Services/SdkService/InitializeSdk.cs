@@ -1,3 +1,4 @@
+using System.Collections;
 using Core;
 using Lib;
 using UnityEngine;
@@ -7,7 +8,11 @@ public class InitializeSdk : MonoConstruct
 {
     [SerializeField] private SceneField _sceneField;
     
-    private void Start() => Context.Resolve<SdkService>().Initialize(InitPlayerDataService);
+    private IEnumerator Start()
+    {
+        yield return new WaitForSeconds(.5f);
+        Context.Resolve<SdkService>().Initialize(InitPlayerDataService);
+    }
 
     private void InitPlayerDataService() => Context.Resolve<PlayerDataService>().Initialize(LoadScene);
     
