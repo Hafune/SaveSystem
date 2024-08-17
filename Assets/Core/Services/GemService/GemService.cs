@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Core.Services;
 using Reflex;
-using UnityEngine;
 
 namespace Core
 {
@@ -22,25 +21,14 @@ namespace Core
             _playerDataService.RegisterService(this);
         }
 
-        public bool TryChangeValue(int value)
-        {
-            if (_serviceData.count + value < 0)
-                return false;
-
-            _serviceData.count += value;
-            _playerDataService.SetDirty(this);
-            OnCountChange?.Invoke();
-
-            return true;
-        }
-
         public void AddCollected(in string instanceUuid)
         {
             if (string.IsNullOrEmpty(instanceUuid))
                 return;
 
-            Debug.Log(instanceUuid);
             _serviceData.collectedGems.Add(instanceUuid);
+            _serviceData.count++;
+            OnCountChange?.Invoke();
             _playerDataService.SetDirty(this);
         }
 

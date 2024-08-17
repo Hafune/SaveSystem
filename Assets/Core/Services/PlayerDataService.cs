@@ -9,23 +9,21 @@ namespace Core
 {
     public class PlayerDataService : MonoConstruct
     {
-        private ServicesValues _servicesValues = new();
-
         private Action InitializeCallback;
-
-        private const string key = nameof(PlayerDataService);
-        private const float _sdkSaveDelay = 5.25f;
-        private const float _saveDelay = 1f;
+        private Action _forceSaveCallback;
+        private Coroutine _awaitCoroutine;
         private SdkService _sdkService;
-        private float _lastSaveTime;
-        private float _delay;
-        private bool _saveAlreadyActive;
+        private ServicesValues _servicesValues = new();
         private bool _saveInProgress;
-        private readonly HashSet<ISerializableService> _totalServices = new();
+        private const float _saveDelay = 1f;
+        private const float _sdkSaveDelay = 5.25f;
+        private const string key = nameof(PlayerDataService);
+        private float _delay;
+        private float _lastSaveTime;
         private readonly HashSet<ISerializableService> _dirtyServices = new();
         private readonly HashSet<ISerializableService> _ignoreResetServices = new();
         private readonly HashSet<ISerializableService> _lazySaveServices = new();
-        private Action _forceSaveCallback;
+        private readonly HashSet<ISerializableService> _totalServices = new();
 
         private void Awake() => enabled = false;
 
@@ -46,6 +44,28 @@ namespace Core
             _sdkService.LoadPlayerData(OnLoadSuccess, OnLoadError);
         }
 
+        public void RegisterService(ISerializableService service, bool ignoreReset = false, bool lazySave = false)
+        {
+            _totalServices.Add(service);
+
+            if (ignoreReset)
+                _ignoreResetServices.Add(service);
+
+            if (lazySave)
+                _lazySaveServices.Add(service);
+        }
+
+        public void SetDirty(ISerializableService service)
+        {
+            _dirtyServices.Add(service);
+
+            if (_lazySaveServices.Contains(service))
+                return;
+
+            _delay = Time.unscaledTime + _saveDelay;
+            enabled = true;
+        }
+
         public void Save(Action forceSaveCallback = null)
         {
             if (_saveInProgress)
@@ -55,22 +75,24 @@ namespace Core
             }
 
             _saveInProgress = true;
-            _forceSaveCallback = forceSaveCallback;
-            float awaitSeconds = forceSaveCallback != null ? 0 : _lastSaveTime - Time.unscaledTime + _sdkSaveDelay;
             _lastSaveTime = Time.unscaledTime;
 
-            if (awaitSeconds > 0)
+            if (forceSaveCallback != null)
             {
-                if (!_saveAlreadyActive)
-                    StartCoroutine(AwaitBeforeSave(awaitSeconds, SaveEnd));
+                _forceSaveCallback = forceSaveCallback;
+                SaveServicesData(SaveComplete);
+                return;
             }
+            
+            float delay = _lastSaveTime - Time.unscaledTime + _sdkSaveDelay;
+
+            if (delay > 0)
+                _awaitCoroutine ??= StartCoroutine(AwaitBeforeSave(delay, SaveComplete));
             else
-            {
-                SaveServicesData(SaveEnd);
-            }
+                SaveServicesData(SaveComplete);
         }
-        
-        private void SaveEnd()
+
+        private void SaveComplete()
         {
             _forceSaveCallback?.Invoke();
             _forceSaveCallback = null;
@@ -94,28 +116,6 @@ namespace Core
         }
 
         public void SerializeData(object obj, object data) => _servicesValues.SerializeData(obj, data);
-
-        public void RegisterService(ISerializableService service, bool ignoreReset = false, bool lazySave = false)
-        {
-            _totalServices.Add(service);
-
-            if (ignoreReset)
-                _ignoreResetServices.Add(service);
-
-            if (lazySave)
-                _lazySaveServices.Add(service);
-        }
-
-        public void SetDirty(ISerializableService service)
-        {
-            _dirtyServices.Add(service);
-
-            if (_lazySaveServices.Contains(service))
-                return;
-
-            _delay = Time.unscaledTime + _saveDelay;
-            enabled = true;
-        }
 
         public T DeserializeData<T>(object obj) where T : new() => _servicesValues.DeserializeData<T>(obj);
 
@@ -145,22 +145,16 @@ namespace Core
             var values = JsonUtility.ToJson(_servicesValues);
             var data = JsonUtility.ToJson(new DataWrapper { data = values });
 
-            Debug.Log("BEGIN DATA SAVE");
-#if VK_GAMES
-            PlayerPrefs.SetString(key, data);
-            PlayerPrefs.Save();
-#endif
             _sdkService.SavePlayerData(data, () => OnSaveSuccess(callback),
                 errorMessage => OnSaveError(errorMessage, data, callback));
         }
 
         private IEnumerator AwaitBeforeSave(float seconds, Action callback)
         {
-            _saveAlreadyActive = true;
             yield return new WaitForSecondsRealtime(seconds);
-
             SaveServicesData(callback);
-            _saveAlreadyActive = false;
+            
+            _awaitCoroutine = null;
         }
 
         private void OnLoadSuccess(string data = null)
